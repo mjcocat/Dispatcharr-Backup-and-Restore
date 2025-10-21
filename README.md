@@ -6,6 +6,18 @@ A simple and reliable database backup solution for Dispatcharr with automated re
 **Author:** Community Plugin  
 **License:** CC BY-NC-SA 4.0 (matching Dispatcharr)
 
+****WARNING***
+This plugin was heavily developed with the assistance of Claude Sonnet AI and is in early stages of testing. Please confirm that you have alternative means to restore your DB if you run into issues. The Dispatacharr FAQ lists the following method:
+
+How can I make a backup of the database?
+1) Access the CLI of the container
+2) Run this command to make a new directory: mkdir /data/manualbackups
+3) Run this command to create the backup: pg_dump -h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER -d $POSTGRES_DB -Fc -v -f "/data/manualbackups/Backup-mm-dd-yy" (change Backup-mm-dd-yy to a name you'd like)
+To Restore that backup follow these steps:
+1) Access the CLI of the container
+2) Run this command to restore the backup:  pg_restore --clean -h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER -d $POSTGRES_DB -v "/data/manualbackups/Backup-mm-dd-yy"
+3) Restart the container
+
 ---
 
 ## Features
