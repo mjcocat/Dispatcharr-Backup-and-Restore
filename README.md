@@ -46,7 +46,7 @@ To Restore that backup follow these steps:
    - Upload the ZIP file
    - Enable the plugin when prompted
 
-3. **Restart Dispatcharr**
+3. **Restart Dispatcharr** (DO NOT SKIP THIS STEP)
    ```bash
    docker restart dispatcharr
    ```
