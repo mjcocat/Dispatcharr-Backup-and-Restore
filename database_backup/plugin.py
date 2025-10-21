@@ -17,7 +17,7 @@ class Plugin:
     
     id = "database_backup"
     name = "Database Backup Manager"
-    version = "0.1.0"
+    version = "0.1.1"
     description = "Automated database backups with retention management and restore capabilities"
     author = "Your Name"
     
@@ -375,9 +375,10 @@ class Plugin:
         db_creds = self._get_db_credentials()
         
         # Try multiple superuser options in order of preference
+        # Start with postgres superuser which should always have CREATEDB permission
         superuser_options = [
-            (db_creds["superuser"], db_creds["superuser_password"]),  # POSTGRES_USER from env
             ("postgres", db_creds["superuser_password"]),  # Standard postgres superuser
+            (db_creds["superuser"], db_creds["superuser_password"]),  # POSTGRES_USER from env
             ("postgres", ""),  # Try no password
         ]
         
@@ -388,7 +389,7 @@ class Plugin:
         # Try each superuser option until one works
         for su_user, su_pass in superuser_options:
             env = os.environ.copy()
-            env["PGPASSWORD"] = su_pass
+            env["PGPASSWORD"] = su_pass if su_pass else ""
             
             logger.info(f"Attempting to use superuser: {su_user}")
             
@@ -438,7 +439,26 @@ class Plugin:
                     check=True
                 )
                 
-                # If we got here, drop succeeded
+                # Step 3: Try to create the database (to verify permissions)
+                logger.info(f"Creating fresh database: {db_creds['name']}")
+                create_cmd = [
+                    "psql",
+                    "-h", db_creds["host"],
+                    "-p", db_creds["port"],
+                    "-U", su_user,
+                    "-d", "postgres",
+                    "-c", f"CREATE DATABASE {db_creds['name']} OWNER {db_creds['user']};"
+                ]
+                
+                result = subprocess.run(
+                    create_cmd,
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+                
+                # If we got here, both drop and create succeeded
                 drop_success = True
                 admin_user = su_user
                 admin_password = su_pass
@@ -447,37 +467,18 @@ class Plugin:
                 
             except subprocess.CalledProcessError as e:
                 logger.warning(f"Failed with user {su_user}: {e.stderr}")
+                # If we dropped but couldn't create, try to recreate before trying next user
+                if "permission denied to create database" in e.stderr.lower():
+                    logger.error(f"User {su_user} can drop but not create databases - trying next superuser")
                 continue
         
         if not drop_success:
             return {
                 "success": False,
-                "message": f"❌ Restore failed: Unable to drop database.\n\nNo superuser credentials worked. Please ensure POSTGRES_PASSWORD environment variable is set correctly.\n\nTried users: {', '.join([opt[0] for opt in superuser_options])}"
+                "message": f"❌ Restore failed: Unable to drop/create database.\n\nNo superuser with CREATEDB permission found.\n\nPlease ensure:\n1. POSTGRES_PASSWORD is set correctly\n2. The postgres superuser exists\n3. Run: docker restart dispatcharr\n\nTried users: {', '.join([opt[0] for opt in superuser_options])}"
             }
         
         try:
-            # Step 3: Create a fresh database with correct owner
-            logger.info(f"Creating fresh database: {db_creds['name']}")
-            env = os.environ.copy()
-            env["PGPASSWORD"] = admin_password
-            
-            create_cmd = [
-                "psql",
-                "-h", db_creds["host"],
-                "-p", db_creds["port"],
-                "-U", admin_user,
-                "-d", "postgres",
-                "-c", f"CREATE DATABASE {db_creds['name']} OWNER {db_creds['user']};"
-            ]
-            
-            result = subprocess.run(
-                create_cmd,
-                env=env,
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            
             # Step 4: Read backup file
             logger.info(f"Reading backup file: {backup_file}")
             if backup_file.endswith('.gz'):
