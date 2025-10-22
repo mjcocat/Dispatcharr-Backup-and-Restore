@@ -2,7 +2,7 @@
 
 A simple and reliable database backup solution for Dispatcharr with automated retention management and one-click restore capabilities.
 
-**Version:** v0.1.2  
+**Version:** v0.1.1
 **Author:** Community Plugin  
 **License:** CC BY-NC-SA 4.0 (matching Dispatcharr)
 
@@ -20,32 +20,7 @@ To Restore that backup follow these steps:
 
 
 ---
-New Features: (v0.1.2)
-✅ Enable Automatic Backups - Toggle checkbox to enable/disable scheduled backups
-✅ Backup Schedule - Dropdown with 5 schedule options:
 
-Every Hour
-Every 6 Hours
-Every 12 Hours
-Daily at 2:00 AM (default)
-Weekly (Sunday at 2:00 AM)
-
-✅ Update Backup Schedule - New button to apply schedule changes
-How It Works:
-
-Save Settings after enabling automatic backups and selecting a schedule
-Click "🔄 Update Backup Schedule" to apply the changes
-The plugin creates/updates a Celery Beat periodic task
-Backups run automatically according to the schedule
-Auto-cleanup still runs after each backup
-
-Usage:
-
-Go to Settings → Plugins → Database Backup Manager → Settings
-Check "Enable Automatic Backups"
-Select your preferred "Backup Schedule"
-Click "Save Settings"
-Click "🔄 Update Backup Schedule" to activate
 
 ## Features (v0.1.1)
 
