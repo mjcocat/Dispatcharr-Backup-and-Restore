@@ -17,7 +17,7 @@ class Plugin:
     
     id = "database_backup"
     name = "Database Backup Manager"
-    version = "0.1.1"
+    version = "0.1.3"
     description = "Automated database backups with retention management and restore capabilities"
     author = "Your Name"
     
@@ -25,6 +25,94 @@ class Plugin:
         """Initialize the plugin"""
         self.backup_path = "/data/backups"
         self.compression_enabled = True
+    
+    def _setup_scheduled_backup(self):
+        """Setup or update the scheduled backup task"""
+        try:
+            from django_celery_beat.models import PeriodicTask, CrontabSchedule, IntervalSchedule
+            from apps.plugins.models import PluginConfig
+            import json
+            
+            # Get plugin settings
+            try:
+                plugin_config = PluginConfig.objects.get(key='database_backup')
+                settings = plugin_config.settings or {}
+            except:
+                settings = {}
+            
+            auto_backup_enabled = settings.get('auto_backup_enabled', False)
+            backup_schedule = settings.get('backup_schedule', 'daily')
+            
+            # Remove existing task if it exists
+            PeriodicTask.objects.filter(name='database_backup_auto').delete()
+            
+            # Create new task if enabled
+            if auto_backup_enabled:
+                # Determine schedule based on selection
+                if backup_schedule == 'hourly':
+                    schedule, _ = IntervalSchedule.objects.get_or_create(
+                        every=1,
+                        period=IntervalSchedule.HOURS,
+                    )
+                    task = PeriodicTask.objects.create(
+                        interval=schedule,
+                        name='database_backup_auto',
+                        task='apps.plugins.tasks.run_plugin_action',
+                        args=json.dumps(['database_backup', 'create_backup', {}]),
+                    )
+                elif backup_schedule == 'every_6_hours':
+                    schedule, _ = IntervalSchedule.objects.get_or_create(
+                        every=6,
+                        period=IntervalSchedule.HOURS,
+                    )
+                    task = PeriodicTask.objects.create(
+                        interval=schedule,
+                        name='database_backup_auto',
+                        task='apps.plugins.tasks.run_plugin_action',
+                        args=json.dumps(['database_backup', 'create_backup', {}]),
+                    )
+                elif backup_schedule == 'every_12_hours':
+                    schedule, _ = IntervalSchedule.objects.get_or_create(
+                        every=12,
+                        period=IntervalSchedule.HOURS,
+                    )
+                    task = PeriodicTask.objects.create(
+                        interval=schedule,
+                        name='database_backup_auto',
+                        task='apps.plugins.tasks.run_plugin_action',
+                        args=json.dumps(['database_backup', 'create_backup', {}]),
+                    )
+                elif backup_schedule == 'daily':
+                    schedule, _ = CrontabSchedule.objects.get_or_create(
+                        minute='0',
+                        hour='2',
+                        day_of_week='*',
+                        day_of_month='*',
+                        month_of_year='*',
+                    )
+                    task = PeriodicTask.objects.create(
+                        crontab=schedule,
+                        name='database_backup_auto',
+                        task='apps.plugins.tasks.run_plugin_action',
+                        args=json.dumps(['database_backup', 'create_backup', {}]),
+                    )
+                elif backup_schedule == 'weekly':
+                    schedule, _ = CrontabSchedule.objects.get_or_create(
+                        minute='0',
+                        hour='2',
+                        day_of_week='0',  # Sunday
+                        day_of_month='*',
+                        month_of_year='*',
+                    )
+                    task = PeriodicTask.objects.create(
+                        crontab=schedule,
+                        name='database_backup_auto',
+                        task='apps.plugins.tasks.run_plugin_action',
+                        args=json.dumps(['database_backup', 'create_backup', {}]),
+                    )
+        except Exception as e:
+            # Silently fail if Celery beat is not available
+            pass
     
     # Settings fields rendered by the UI and persisted by the backend
     fields = [
