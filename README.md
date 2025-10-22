@@ -2,7 +2,7 @@
 
 A simple and reliable database backup solution for Dispatcharr with automated retention management and one-click restore capabilities.
 
-**Version:** v0.1.1
+**Version:** v0.1.3
 **Author:** Community Plugin  
 **License:** CC BY-NC-SA 4.0 (matching Dispatcharr)
 
