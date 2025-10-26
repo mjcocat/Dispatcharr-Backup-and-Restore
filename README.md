@@ -27,11 +27,17 @@ What's New
 Features Being Added:
 
 ✅ Automatic Scheduled Backups - Set specific times for automatic daily backups
+
 ✅ Timezone Support - Configure backups to run in your local timezone
+
 ✅ Multiple Daily Schedules - Set multiple backup times per day (e.g., 2am, 2pm, 11pm)
+
 ✅ Schedule Management - Easy "Update Schedule" button to activate/modify schedules
+
 ✅ Task Cleanup - Remove scheduled tasks with "Delete Backup Schedule"
+
 ✅ Timezone-Aware Display - Backup timestamps shown in your configured timezone (not UTC)
+
 
 What's old
 
