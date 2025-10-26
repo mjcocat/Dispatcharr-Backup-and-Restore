@@ -2,7 +2,7 @@
 
 A simple and reliable database backup solution for Dispatcharr with automated retention management and one-click restore capabilities.
 
-**Version:** v0.1.3
+**Version:** v0.1.4
 **Author:** Community Plugin  
 **License:** CC BY-NC-SA 4.0 (matching Dispatcharr)
 
@@ -22,7 +22,18 @@ To Restore that backup follow these steps:
 ---
 
 
-## Features (v0.1.1)
+## Features (v0.1.4)
+What's New
+Features Being Added:
+
+✅ Automatic Scheduled Backups - Set specific times for automatic daily backups
+✅ Timezone Support - Configure backups to run in your local timezone
+✅ Multiple Daily Schedules - Set multiple backup times per day (e.g., 2am, 2pm, 11pm)
+✅ Schedule Management - Easy "Update Schedule" button to activate/modify schedules
+✅ Task Cleanup - Remove scheduled tasks with "Delete Backup Schedule"
+✅ Timezone-Aware Display - Backup timestamps shown in your configured timezone (not UTC)
+
+What's old
 
 ✅ **One-Click Backups** - Create compressed database backups instantly  
 ✅ **One-Click Restore** - Restore any backup with a single click  
