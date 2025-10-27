@@ -25,7 +25,7 @@ class Plugin:
     """Database Backup Manager with Scheduling Support"""
     
     name = "Database Backup Manager"
-    version = "0.1.4"
+    version = "0.1.5"
     description = "Database backup with scheduled automation and retention management"
     author = "Community Plugin"
     
@@ -335,6 +335,8 @@ class Plugin:
             bool: True if successful
         """
         try:
+            logger.info(f"Starting database restore from: {backup_path}")
+            
             # Get database credentials
             db_host = os.getenv('POSTGRES_HOST', 'localhost')
             db_port = os.getenv('POSTGRES_PORT', '5432')
@@ -342,72 +344,148 @@ class Plugin:
             db_name = os.getenv('POSTGRES_DB', 'dispatcharr')
             db_password = os.getenv('POSTGRES_PASSWORD', '')
             
-            env = os.environ.copy()
-            env['PGPASSWORD'] = db_password
-            
-            logger.info(f"Restoring from: {backup_path}")
-            
-            # Step 1: Terminate all connections to the database
-            logger.info("Terminating database connections...")
-            terminate_cmd = [
-                'psql',
-                '-h', db_host,
-                '-p', db_port,
-                '-U', db_user,
-                '-d', 'postgres',  # Connect to postgres db
-                '-c', f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{db_name}' AND pid <> pg_backend_pid();"
+            # Try multiple superuser options in order of preference
+            # Start with postgres superuser which should always have CREATEDB permission
+            superuser_options = [
+                ("postgres", db_password),  # Standard postgres superuser with env password
+                (db_user, db_password),     # POSTGRES_USER from env
+                ("postgres", ""),           # Try postgres with no password
             ]
-            subprocess.run(terminate_cmd, env=env, check=True, capture_output=True)
             
-            # Step 2: Drop and recreate database
-            logger.info("Dropping and recreating database...")
-            drop_cmd = [
-                'psql',
-                '-h', db_host,
-                '-p', db_port,
-                '-U', db_user,
-                '-d', 'postgres',
-                '-c', f'DROP DATABASE IF EXISTS "{db_name}";'
+            drop_success = False
+            admin_user = None
+            admin_password = None
+            
+            # Try each superuser option until one works
+            for su_user, su_pass in superuser_options:
+                env = os.environ.copy()
+                env["PGPASSWORD"] = su_pass if su_pass else ""
+                
+                logger.info(f"Attempting to use superuser: {su_user}")
+                
+                try:
+                    # Step 1: Terminate all connections to the database
+                    logger.info("Terminating existing database connections...")
+                    terminate_sql = f"""
+                    SELECT pg_terminate_backend(pg_stat_activity.pid)
+                    FROM pg_stat_activity
+                    WHERE pg_stat_activity.datname = '{db_name}'
+                    AND pid <> pg_backend_pid();
+                    """
+                    
+                    terminate_cmd = [
+                        "psql",
+                        "-h", db_host,
+                        "-p", db_port,
+                        "-U", su_user,
+                        "-d", "postgres",
+                        "-c", terminate_sql
+                    ]
+                    
+                    subprocess.run(
+                        terminate_cmd,
+                        env=env,
+                        capture_output=True,
+                        text=True,
+                        check=False  # Don't fail if no connections to terminate
+                    )
+                    
+                    # Step 2: Drop the database
+                    logger.info(f"Dropping database: {db_name}")
+                    drop_cmd = [
+                        "psql",
+                        "-h", db_host,
+                        "-p", db_port,
+                        "-U", su_user,
+                        "-d", "postgres",
+                        "-c", f"DROP DATABASE IF EXISTS {db_name};"
+                    ]
+                    
+                    result = subprocess.run(
+                        drop_cmd,
+                        env=env,
+                        capture_output=True,
+                        text=True,
+                        check=True
+                    )
+                    
+                    # Step 3: Create the database with proper ownership
+                    logger.info(f"Creating fresh database: {db_name}")
+                    create_cmd = [
+                        "psql",
+                        "-h", db_host,
+                        "-p", db_port,
+                        "-U", su_user,
+                        "-d", "postgres",
+                        "-c", f"CREATE DATABASE {db_name} OWNER {db_user};"
+                    ]
+                    
+                    result = subprocess.run(
+                        create_cmd,
+                        env=env,
+                        capture_output=True,
+                        text=True,
+                        check=True
+                    )
+                    
+                    # If we got here, both drop and create succeeded
+                    drop_success = True
+                    admin_user = su_user
+                    admin_password = su_pass
+                    logger.info(f"Successfully authenticated as superuser: {su_user}")
+                    break
+                    
+                except subprocess.CalledProcessError as e:
+                    logger.warning(f"Failed with user {su_user}: {e.stderr}")
+                    # If we dropped but couldn't create, try to recreate before trying next user
+                    if "permission denied to create database" in e.stderr.lower():
+                        logger.error(f"User {su_user} can drop but not create databases - trying next superuser")
+                    continue
+            
+            if not drop_success:
+                logger.error("Unable to drop/create database with any superuser")
+                return False
+            
+            # Step 4: Read backup file
+            logger.info(f"Reading backup file: {backup_path}")
+            if backup_path.endswith('.gz'):
+                import gzip
+                with gzip.open(backup_path, 'rt', encoding='utf-8') as f:
+                    sql_content = f.read()
+            else:
+                with open(backup_path, 'r', encoding='utf-8') as f:
+                    sql_content = f.read()
+            
+            # Step 5: Restore the backup into the fresh database (use regular user)
+            logger.info("Restoring backup data...")
+            restore_env = os.environ.copy()
+            restore_env["PGPASSWORD"] = db_password
+            
+            restore_cmd = [
+                "psql",
+                "-h", db_host,
+                "-p", db_port,
+                "-U", db_user,
+                "-d", db_name
             ]
-            subprocess.run(drop_cmd, env=env, check=True, capture_output=True)
             
-            create_cmd = [
-                'psql',
-                '-h', db_host,
-                '-p', db_port,
-                '-U', db_user,
-                '-d', 'postgres',
-                '-c', f'CREATE DATABASE "{db_name}";'
-            ]
-            subprocess.run(create_cmd, env=env, check=True, capture_output=True)
+            result = subprocess.run(
+                restore_cmd,
+                input=sql_content,
+                env=restore_env,
+                capture_output=True,
+                text=True,
+                check=True
+            )
             
-            # Step 3: Restore from backup
-            logger.info("Restoring data...")
-            with gzip.open(backup_path, 'rb') as gz_file:
-                restore_cmd = [
-                    'psql',
-                    '-h', db_host,
-                    '-p', db_port,
-                    '-U', db_user,
-                    '-d', db_name,
-                    '-v', 'ON_ERROR_STOP=1'
-                ]
-                result = subprocess.run(
-                    restore_cmd,
-                    env=env,
-                    stdin=gz_file,
-                    capture_output=True,
-                    check=True
-                )
-            
-            logger.info("Database restored successfully")
+            logger.info(f"Database restored successfully from: {backup_path}")
             return True
             
         except subprocess.CalledProcessError as e:
-            logger.error(f"Restore command failed: {e.stderr.decode()}")
+            logger.error(f"Database restore failed: {e.stderr}")
             return False
         except Exception as e:
-            logger.error(f"Restore failed: {e}", exc_info=True)
+            logger.error(f"Restore error: {str(e)}", exc_info=True)
             return False
     
     def apply_retention(self, settings, logger):
