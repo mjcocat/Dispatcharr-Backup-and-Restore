@@ -25,7 +25,7 @@ class Plugin:
     """Database Backup Manager with Scheduling Support"""
     
     name = "Database Backup Manager"
-    version = "0.1.5"
+    version = "0.1.6"
     description = "Database backup with scheduled automation and retention management"
     author = "Community Plugin"
     
@@ -668,7 +668,7 @@ class Plugin:
         Parse cron format string into schedule components
         
         Args:
-            cron_str: Cron format string like "0 2 * * *" or "0 2,14 * * *"
+            cron_str: Cron format string like "0 2 * * *" or "0 */6 * * *"
         
         Returns:
             dict with minute, hour, day_of_week, day_of_month, month_of_year
@@ -686,16 +686,84 @@ class Plugin:
             return None
         
         try:
+            # Expand step values (e.g., */5 or 0/5) into comma-separated lists
+            expanded_parts = []
+            ranges = {
+                0: (0, 59),   # minute
+                1: (0, 23),   # hour
+                2: (1, 31),   # day_of_month
+                3: (1, 12),   # month
+                4: (0, 6)     # day_of_week
+            }
+            
+            for idx, part in enumerate(parts):
+                if '/' in part:
+                    # Handle step values like */5, 0/5, 1-10/2, etc.
+                    expanded_parts.append(self._expand_step_value(part, ranges[idx]))
+                else:
+                    expanded_parts.append(part)
+            
             return {
-                'minute': parts[0],
-                'hour': parts[1],
-                'day_of_month': parts[2],
-                'month_of_year': parts[3],
-                'day_of_week': parts[4]
+                'minute': expanded_parts[0],
+                'hour': expanded_parts[1],
+                'day_of_month': expanded_parts[2],
+                'month_of_year': expanded_parts[3],
+                'day_of_week': expanded_parts[4]
             }
         except Exception as e:
             logger.error(f"Error parsing cron format '{cron_str}': {e}")
             return None
+    
+    def _expand_step_value(self, value, value_range):
+        """
+        Expand cron step values like */5, 0/5, or 1-10/2 into comma-separated values
+        
+        Args:
+            value: Step value string (e.g., "*/5", "0/5", "1-10/2")
+            value_range: Tuple of (min, max) for this field
+        
+        Returns:
+            String of comma-separated values or original if not a step
+        """
+        min_val, max_val = value_range
+        
+        try:
+            if '/' not in value:
+                return value
+            
+            # Split into range and step parts
+            range_part, step_part = value.split('/')
+            step = int(step_part)
+            
+            if step <= 0:
+                logger.warning(f"Invalid step value: {step}")
+                return value
+            
+            # Determine the range
+            if range_part == '*':
+                start, end = min_val, max_val
+            elif '-' in range_part:
+                start_str, end_str = range_part.split('-')
+                start, end = int(start_str), int(end_str)
+            else:
+                # Single number like "0/5" means start at 0
+                start = int(range_part)
+                end = max_val
+            
+            # Generate the list of values
+            values = []
+            current = start
+            while current <= end:
+                values.append(str(current))
+                current += step
+            
+            result = ','.join(values)
+            logger.info(f"Expanded {value} to {result}")
+            return result
+            
+        except Exception as e:
+            logger.warning(f"Failed to expand step value '{value}': {e}")
+            return value
     
     def create_or_update_schedule(self, cron_schedule, timezone_str, task_name):
         """
