@@ -7,7 +7,7 @@ A simple and reliable database backup solution for Dispatcharr with automated re
 **License:** CC BY-NC-SA 4.0 (matching Dispatcharr)
 
 $${\color{red}Warning}$$
-This plugin was heavily developed with the assistance of Claude Sonnet AI and is in early stages of testing. Please confirm that you have alternative means to restore your DB if you run into issues. The Dispatacharr FAQ lists the following method:
+This plugin was partially developed with the assistance of Claude Sonnet AI. Please confirm that you have alternative means to restore your DB if you run into issues. The Dispatacharr FAQ lists the following method:
 
 How can I make a backup of the database?
 1) Access the CLI of the container
